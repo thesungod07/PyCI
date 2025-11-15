@@ -1,0 +1,19 @@
+[project]
+name = "pyci"
+version = "0.1.0"
+description = "Lightweight CI runner and developer assistant"
+authors = [
+    { name = "Saicharan" }
+]
+requires-python = ">=3.8"
+
+dependencies = [
+    "PyYAML"
+]
+
+[project.scripts]
+pyci = "pyci.cli:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

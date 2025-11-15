@@ -1,0 +1,5 @@
+jobs:
+  hello:
+    steps:
+      - echo "Hello from PyCI!"
+      - python --version
