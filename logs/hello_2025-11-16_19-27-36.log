@@ -1,0 +1,15 @@
+=== Logs for job: hello ===
+Started: 2025-11-16_19-27-36
+
+
+→ echo "Hello from PyCI!"
+"Hello from PyCI!"
+
+
+✔ Success (0.04s)
+
+→ python --version
+Python 3.13.0
+
+
+✔ Success (0.15s)

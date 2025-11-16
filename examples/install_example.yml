@@ -1,0 +1,7 @@
+jobs:
+  deps_test:
+    install:
+      - pip install requests
+      - pip install colorama
+    steps:
+      - python -c "import requests; import colorama; print('Both installed!')"

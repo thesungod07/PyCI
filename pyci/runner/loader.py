@@ -37,6 +37,22 @@ def load_config(path: str):
         if "steps" not in job_data:
             raise SystemExit(f"❌ Job '{job_name}' is missing required key: 'steps'")
 
+        # Validate install section (optional)
+        if "install" in job_data:
+            install_cmds = job_data["install"]
+
+            if not isinstance(install_cmds, list):
+                raise SystemExit(f"❌ 'install' in job '{job_name}' must be a list")
+
+            for cmd in install_cmds:
+                if not isinstance(cmd, str):
+                    raise SystemExit(
+                        f"❌ Invalid install command in job '{job_name}'. "
+                        f"All install commands must be strings.\n"
+                        f"   Offending value: {cmd}"
+                    )
+
+
         steps = job_data["steps"]
 
         if not isinstance(steps, list):
