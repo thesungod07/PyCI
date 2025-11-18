@@ -1,0 +1,11 @@
+env:
+  MESSAGE: "Hello from global env"
+  X: "100"
+
+jobs:
+  print_env:
+    env:
+      X: "999"
+      Y: "Job-specific"
+    steps:
+      - python -c 'import os; print(os.environ['MESSAGE']); print(os.environ['X']); print(os.environ['Y'])''

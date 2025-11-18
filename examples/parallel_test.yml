@@ -1,0 +1,8 @@
+jobs:
+  job1:
+    steps:
+      - python -c "import time; time.sleep(2); print('Job 1 done')"
+
+  job2:
+    steps:
+      - python -c "import time; time.sleep(2); print('Job 2 done')"

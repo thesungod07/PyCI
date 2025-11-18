@@ -36,6 +36,12 @@ def load_config(path: str):
 
         if "steps" not in job_data:
             raise SystemExit(f"❌ Job '{job_name}' is missing required key: 'steps'")
+        
+        # Validate global env
+        if "env" in data:
+            if not isinstance(data["env"], dict):
+                raise SystemExit("❌ Top-level 'env' must be a dictionary")
+
 
         # Validate install section (optional)
         if "install" in job_data:
@@ -51,6 +57,12 @@ def load_config(path: str):
                         f"All install commands must be strings.\n"
                         f"   Offending value: {cmd}"
                     )
+                
+        
+        # Validate environment variables (optional)
+        if "env" in job_data:
+            if not isinstance(job_data["env"], dict):
+                raise SystemExit(f"❌ 'env' in job '{job_name}' must be a dictionary")
 
 
         steps = job_data["steps"]

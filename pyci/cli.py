@@ -5,12 +5,14 @@ from pyci.runner.executor import run_jobs
 
 def main():
     parser = argparse.ArgumentParser(prog="pyci", description="PyCI Runner")
+    parser.add_argument("--version", action="version", version="PyCI 1.0.0")
 
     sub = parser.add_subparsers(dest="command")
 
     # pyci run
     run_cmd = sub.add_parser("run", help="Run CI jobs defined in .pyci.yml")
     run_cmd.add_argument("--file", default=".pyci.yml", help="Path to config file")
+    run_cmd.add_argument("--parallel", action="store_true", help="Run jobs in parallel")
 
     # pyci validate
     val_cmd = sub.add_parser("validate", help="Validate CI configuration")
