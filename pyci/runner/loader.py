@@ -41,7 +41,22 @@ def load_config(path: str):
         if "env" in data:
             if not isinstance(data["env"], dict):
                 raise SystemExit("❌ Top-level 'env' must be a dictionary")
+        
+                # Validate 'needs' (optional)
+        if "needs" in job_data:
+            needs = job_data["needs"]
 
+            if isinstance(needs, str):
+                needs = [needs]
+
+            if not isinstance(needs, list):
+                raise SystemExit(f"❌ 'needs' in job '{job_name}' must be a string or list of strings")
+
+            for dep in needs:
+                if dep not in data["jobs"]:
+                    raise SystemExit(
+                        f"❌ Job '{job_name}' references unknown dependency '{dep}' in 'needs'"
+                    )
 
         # Validate install section (optional)
         if "install" in job_data:

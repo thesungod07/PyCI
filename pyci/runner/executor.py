@@ -112,27 +112,77 @@ def run_jobs(config, parallel=False):
     jobs = config.get("jobs", {})
 
     if not parallel:
-        # Sequential mode (previous behavior)
+        order = order_jobs_by_dependencies(jobs)
+
         for job_name, job_data in jobs.items():
-            run_single_job(job_name, job_data)
+            run_single_job(job_name, jobs[job_name])
         return
 
-    # PARALLEL MODE
-    print(Colors.bold("\n🚀 Running jobs in parallel...\n"))
+        # PARALLEL MODE WITH DEPENDENCY TRACKING
+        print(Colors.bold("\n🚀 Running jobs in parallel with dependency resolution...\n"))
 
-    with ThreadPoolExecutor() as executor:
-        futures = {
-            executor.submit(run_single_job, name, data): name
-            for name, data in jobs.items()
-        }
+        order = order_jobs_by_dependencies(jobs)
 
-        for future in as_completed(futures):
-            job_name = futures[future]
-            try:
-                name, success, log_path = future.result()
-                if success:
-                    print(Colors.green(f"✔ Job '{name}' completed successfully"))
+        completed = {}
+        futures = {}
+
+        with ThreadPoolExecutor() as executor:
+            for job_name in order:
+                needs = jobs[job_name].get("needs", [])
+
+                # Wait for dependencies
+                for dep in needs if isinstance(needs, list) else [needs]:
+                    # If dependency failed, skip this job
+                    if completed.get(dep) is False:
+                        print(Colors.red(f"❌ Skipping '{job_name}' because dependency '{dep}' failed"))
+                        completed[job_name] = False
+                        break
                 else:
-                    print(Colors.red(f"❌ Job '{name}' failed"))
-            except Exception as e:
-                print(Colors.red(f"❌ Job '{job_name}' crashed with error: {e}"))
+                    # Run job
+                    futures[job_name] = executor.submit(
+                        run_single_job, job_name, jobs[job_name]
+                    )
+
+                # Check finished jobs
+                for name, future in list(futures.items()):
+                    if future.done():
+                        _, success, _ = future.result()
+                        completed[name] = success
+                        del futures[name]
+
+        # Wait for remaining
+        for name, future in futures.items():
+            _, success, _ = future.result()
+            completed[name] = success
+
+def order_jobs_by_dependencies(jobs):
+    # Build graph
+    graph = {}
+    indegree = {}
+
+    for job_name, job_data in jobs.items():
+        needs = job_data.get("needs", [])
+        if isinstance(needs, str):
+            needs = [needs]
+
+        graph[job_name] = needs
+        indegree[job_name] = len(needs)
+
+    # Kahn’s Topological Sort
+    ordered = []
+    ready = [job for job, d in indegree.items() if d == 0]
+
+    while ready:
+        job = ready.pop(0)
+        ordered.append(job)
+
+        for j, deps in graph.items():
+            if job in deps:
+                indegree[j] -= 1
+                if indegree[j] == 0:
+                    ready.append(j)
+
+    if len(ordered) != len(jobs):
+        raise SystemExit("❌ Cyclic dependency detected in 'needs:'")
+
+    return ordered
