@@ -1,0 +1,14 @@
+jobs:
+  build:
+    steps:
+      - python -c "print('BUILD OK')"
+
+  test:
+    needs: build
+    steps:
+      - python -c "print('TEST OK')"
+
+  deploy:
+    needs: [build, test]
+    steps:
+      - python -c "print('DEPLOY OK')"
