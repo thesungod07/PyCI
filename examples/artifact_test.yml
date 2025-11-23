@@ -1,0 +1,6 @@
+jobs:
+  produce:
+    steps:
+      - python -c "open('output.txt','w').write('Hello Artifact!')"
+    artifacts:
+      - output.txt

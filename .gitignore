@@ -1,0 +1,3 @@
+logs/
+pyci/_pycache__/
+pyci/runner/__pycache__/

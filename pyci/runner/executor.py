@@ -1,6 +1,7 @@
 import subprocess
 import time
 import os
+import shutil
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -32,6 +33,31 @@ def run_single_job(job_name, job_data):
 
         print(Colors.bold(f"\n=== Running job: {job_name} ==="))
 
+        uses = job_data.get("uses_artifacts", [])
+
+        if uses:
+            print(Colors.yellow(f"\n📦 Fetching artifacts for job '{job_name}'..."))
+            logfile.write("\n=== Fetching Artifacts ===\n")
+
+            for dep in uses:
+                src_dir = f"artifacts/{dep}"
+                dest_dir = f"artifacts_used/{job_name}/{dep}"
+
+                if not os.path.exists(src_dir):
+                    logfile.write(f"❌ Missing artifacts from: {dep}\n")
+                    print(Colors.red(f"❌ Artifacts from job '{dep}' not found"))
+                    return (job_name, False, log_path)
+
+                os.makedirs(dest_dir, exist_ok=True)
+
+                for file in os.listdir(src_dir):
+                    src = os.path.join(src_dir, file)
+                    dst = os.path.join(dest_dir, file)
+
+                    shutil.copy(src, dst)
+                    logfile.write(f"✔ Pulled: {dep}/{file}\n")
+                    print(Colors.green(f"✔ Pulled artifact: {dep}/{file}"))
+        
         install_cmds = job_data.get("install", [])
 
         if install_cmds:
@@ -103,8 +129,28 @@ def run_single_job(job_name, job_data):
 
                 return (job_name, False, log_path)
 
-    print(Colors.yellow(f"📄 Log saved at: {log_path}"))
-    return (job_name, True, log_path)
+        artifacts = job_data.get("artifacts", [])
+        if artifacts:
+            artifacts_dir = f"artifacts/{job_name}"
+            os.makedirs(artifacts_dir, exist_ok=True)
+
+            logfile.write("\n=== Saving Artifacts ===\n")
+            print(Colors.yellow(f"\n📦 Saving artifacts for job '{job_name}'..."))
+
+            for path in artifacts:
+                if os.path.exists(path):
+                    shutil.copy(path, artifacts_dir)
+                    logfile.write(f"✔ Saved: {path}\n")
+                    print(Colors.green(f"✔ Saved artifact: {path}"))
+                else:
+                    logfile.write(f"❌ Not found: {path}\n")
+                    print(Colors.red(f"❌ Artifact not found: {path}"))
+
+            print(Colors.yellow(f"Artifacts stored in: {artifacts_dir}\n"))
+
+        print(Colors.yellow(f"📄 Log saved at: {log_path}"))
+        return (job_name, True, log_path)
+
 
 
 # Run all jobs (sequentially or in parallel)

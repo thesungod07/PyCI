@@ -72,8 +72,39 @@ def load_config(path: str):
                         f"All install commands must be strings.\n"
                         f"   Offending value: {cmd}"
                     )
-                
         
+        if "artifacts" in job_data:
+            artifacts = job_data["artifacts"]
+
+            if not isinstance(artifacts, list):
+                raise SystemExit(f"❌ 'artifacts' in job '{job_name}' must be a list")
+
+            for path in artifacts:
+                if not isinstance(path, str):
+                    raise SystemExit(
+                        f"❌ Invalid artifact path in job '{job_name}'. Must be a string.\n"
+                        f"   Offending value: {path}"
+                    )
+
+        # Validate artifact usage (optional)
+        if "uses_artifacts" in job_data:
+            uses = job_data["uses_artifacts"]
+
+            # Convert string → list
+            if isinstance(uses, str):
+                uses = [uses]
+                job_data["uses_artifacts"] = uses
+
+            if not isinstance(uses, list):
+                raise SystemExit(f"❌ 'uses_artifacts' in job '{job_name}' must be a string or list")
+
+            for dep in uses:
+                if dep not in data["jobs"]:
+                    raise SystemExit(
+                        f"❌ Job '{job_name}' requests artifacts from unknown job '{dep}'"
+                    )
+
+
         # Validate environment variables (optional)
         if "env" in job_data:
             if not isinstance(job_data["env"], dict):

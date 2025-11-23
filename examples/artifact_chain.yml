@@ -1,0 +1,12 @@
+jobs:
+  build:
+    steps:
+      - python -c "open('data.txt','w').write('Hello from build')"
+    artifacts:
+      - data.txt
+
+  test:
+    needs: build
+    uses_artifacts: build
+    steps:
+      - python -c "print(open('artifacts_used/test/build/data.txt').read())"
