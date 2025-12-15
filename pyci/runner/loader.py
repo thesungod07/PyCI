@@ -42,7 +42,7 @@ def load_config(path: str):
             if not isinstance(data["env"], dict):
                 raise SystemExit("❌ Top-level 'env' must be a dictionary")
         
-                # Validate 'needs' (optional)
+        # Validate 'needs' (optional)
         if "needs" in job_data:
             needs = job_data["needs"]
 
@@ -103,6 +103,14 @@ def load_config(path: str):
                     raise SystemExit(
                         f"❌ Job '{job_name}' requests artifacts from unknown job '{dep}'"
                     )
+
+        # Validate timeout (optional)
+        if "timeout" in job_data:
+            timeout = job_data["timeout"]
+            if not isinstance(timeout, (int, float)) or timeout <= 0:
+                raise SystemExit(
+                    f"❌ 'timeout' in job '{job_name}' must be a positive number (seconds)"
+                )
 
 
         # Validate environment variables (optional)

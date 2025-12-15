@@ -1,3 +1,6 @@
 logs/
-pyci/_pycache__/
+pyci/__pycache__/
 pyci/runner/__pycache__/
+pyci/utils/__pycache__/
+.pyci_env/
+venv/

@@ -8,9 +8,24 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pyci.utils.colors import Colors
 from pyci.runner.sandbox import create_env
 
+def check_timeout(job_name, job_timeout, job_start_time, logfile):
+    if job_timeout is None:
+        return False
+
+    elapsed = time.time() - job_start_time
+    if elapsed > job_timeout:
+        msg = f"❌ Job '{job_name}' timed out after {job_timeout} seconds\n"
+        print(Colors.red(msg.strip()))
+        logfile.write(msg)
+        return True
+
+    return False
 
 # Run a single job
 def run_single_job(job_name, job_data):
+    job_timeout = job_data.get("timeout")
+    job_start_time = time.time()
+    
     # Prepare logs folder
     os.makedirs("logs", exist_ok=True)
 
@@ -58,6 +73,10 @@ def run_single_job(job_name, job_data):
                     logfile.write(f"✔ Pulled: {dep}/{file}\n")
                     print(Colors.green(f"✔ Pulled artifact: {dep}/{file}"))
         
+        if check_timeout(job_name, job_timeout, job_start_time, logfile):
+            return (job_name, False, log_path)
+
+        
         install_cmds = job_data.get("install", [])
 
         if install_cmds:
@@ -92,9 +111,16 @@ def run_single_job(job_name, job_data):
 
             print(Colors.green("✔ Dependencies installed successfully\n"))
 
+        if check_timeout(job_name, job_timeout, job_start_time, logfile):
+            return (job_name, False, log_path)
+
+        
         steps = job_data.get("steps", [])
 
         for step in steps:
+            if check_timeout(job_name, job_timeout, job_start_time, logfile):
+                return (job_name, False, log_path)
+
             print(Colors.blue(f"→ {step}"))
             logfile.write(f"\n→ {step}\n")
 
