@@ -1,9 +1,51 @@
 import yaml
+import itertools
+import copy
 
 REQUIRED_TOP_LEVEL = ["jobs"]
 
+def expand_matrix_jobs(jobs):
+    expanded = {}
 
-def load_config(path: str):
+    for job_name, job_data in jobs.items():
+        matrix = job_data.get("matrix")
+
+        # No matrix → keep job as-is
+        if not matrix:
+            expanded[job_name] = job_data
+            continue
+
+        if not isinstance(matrix, dict):
+            raise SystemExit(f"❌ 'matrix' in job '{job_name}' must be a dictionary")
+
+        keys = list(matrix.keys())
+        values = list(matrix.values())
+
+        for k, v in matrix.items():
+            if not isinstance(v, list):
+                raise SystemExit(
+                    f"❌ Matrix values for '{k}' in job '{job_name}' must be a list"
+                )
+
+        # Cartesian product
+        for combo in itertools.product(*values):
+            suffix = ",".join(f"{k}={v}" for k, v in zip(keys, combo))
+            new_job_name = f"{job_name}[{suffix}]"
+
+            new_job = copy.deepcopy(job_data)
+            new_job.pop("matrix")
+
+            # Inject matrix vars as env
+            env = new_job.get("env", {})
+            env.update({k: str(v) for k, v in zip(keys, combo)})
+            new_job["env"] = env
+
+            expanded[new_job_name] = new_job
+
+    return expanded
+
+
+def load_config(path: str):    
     # Loading YAML file safely
     try:
         with open(path, "r") as f:
@@ -23,6 +65,9 @@ def load_config(path: str):
             raise SystemExit(f"❌ Missing required top-level key: '{key}'")
 
     jobs = data["jobs"]
+    jobs = expand_matrix_jobs(jobs)
+    data["jobs"] = jobs
+    
     if not isinstance(jobs, dict):
         raise SystemExit("❌ 'jobs' must be a dictionary of job_name → job_config")
 

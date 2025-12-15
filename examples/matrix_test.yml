@@ -1,0 +1,7 @@
+jobs:
+  test:
+    matrix:
+      PYTHON_VERSION: ["3.10", "3.11"]
+      MODE: ["fast", "slow"]
+    steps:
+      - python -c "import os; print(os.environ[\"PYTHON_VERSION\"], os.environ[\"MODE\"])"

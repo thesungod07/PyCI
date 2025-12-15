@@ -1,30 +1,27 @@
 import os
-import subprocess
 import sys
+import subprocess
 from pathlib import Path
 
 
-ENV_ROOT = Path(".pyci_env")
-
-
-def create_env(job_name: str):
+def create_env(job_id: str) -> Path:
     """
-    Create a virtual environment for the given job.
-    Returns the path to the Python executable inside the venv.
+    Create (or reuse) a virtual environment for a job.
+    IMPORTANT: job_id MUST be filesystem-safe.
     """
-    ENV_ROOT.mkdir(exist_ok=True)
+    base_dir = Path(".pyci_env")
+    env_dir = base_dir / job_id
 
-    env_path = ENV_ROOT / job_name
+    if not env_dir.exists():
+        print(f"🔧 Creating virtual environment for job '{job_id}'...")
+        subprocess.check_call(
+            [sys.executable, "-m", "venv", str(env_dir)]
+        )
 
-    # Create venv only if not already created
-    if not env_path.exists():
-        print(f"🔧 Creating virtual environment for job '{job_name}'...")
-        subprocess.run([sys.executable, "-m", "venv", str(env_path)], check=True)
-
-    # Path to the Python executable inside the venv
-    if os.name == "nt":
-        python_exe = env_path / "Scripts" / "python.exe"
+    # Return python executable path
+    if os.name == "nt":  # Windows
+        python_exe = env_dir / "Scripts" / "python.exe"
     else:
-        python_exe = env_path / "bin" / "python"
+        python_exe = env_dir / "bin" / "python"
 
     return python_exe

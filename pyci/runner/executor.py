@@ -2,11 +2,20 @@ import subprocess
 import time
 import os
 import shutil
+import re
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from pyci.utils.colors import Colors
 from pyci.runner.sandbox import create_env
+
+
+# ---------------- UTILS ---------------- #
+
+def safe_job_id(job_name: str) -> str:
+    """Filesystem-safe job identifier (important for Windows)."""
+    return re.sub(r"[^A-Za-z0-9_-]", "_", job_name)
+
 
 def check_timeout(job_name, job_timeout, job_start_time, logfile):
     if job_timeout is None:
@@ -21,26 +30,25 @@ def check_timeout(job_name, job_timeout, job_start_time, logfile):
 
     return False
 
-# Run a single job
+
+# ---------------- JOB EXECUTION ---------------- #
+
 def run_single_job(job_name, job_data):
+    job_id = safe_job_id(job_name)
     job_timeout = job_data.get("timeout")
     job_start_time = time.time()
-    
-    # Prepare logs folder
+
     os.makedirs("logs", exist_ok=True)
 
-    # Prepare virtual environment
-    python_exe = create_env(job_name)
+    # Create sandbox using SAFE job id
+    python_exe = create_env(job_id)
 
-    global_env = job_data.get("env", {})
-    job_env = job_data.get("env", {})
+    # Merge env correctly
+    env = {**os.environ}
+    env.update({str(k): str(v) for k, v in job_data.get("env", {}).items()})
 
-    env = {**global_env, **job_env}
-    env = {str(k): str(v) for k, v in env.items()}
-
-    # Create log file
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    log_path = f"logs/{job_name}_{timestamp}.log"
+    log_path = f"logs/{job_id}_{timestamp}.log"
 
     with open(log_path, "w", encoding="utf-8") as logfile:
         logfile.write(f"=== Logs for job: {job_name} ===\n")
@@ -48,15 +56,19 @@ def run_single_job(job_name, job_data):
 
         print(Colors.bold(f"\n=== Running job: {job_name} ==="))
 
+        # -------- FETCH ARTIFACTS -------- #
         uses = job_data.get("uses_artifacts", [])
+        if isinstance(uses, str):
+            uses = [uses]
 
         if uses:
             print(Colors.yellow(f"\n📦 Fetching artifacts for job '{job_name}'..."))
             logfile.write("\n=== Fetching Artifacts ===\n")
 
             for dep in uses:
-                src_dir = f"artifacts/{dep}"
-                dest_dir = f"artifacts_used/{job_name}/{dep}"
+                dep_id = safe_job_id(dep)
+                src_dir = f"artifacts/{dep_id}"
+                dest_dir = f"artifacts_used/{job_id}/{dep_id}"
 
                 if not os.path.exists(src_dir):
                     logfile.write(f"❌ Missing artifacts from: {dep}\n")
@@ -66,28 +78,26 @@ def run_single_job(job_name, job_data):
                 os.makedirs(dest_dir, exist_ok=True)
 
                 for file in os.listdir(src_dir):
-                    src = os.path.join(src_dir, file)
-                    dst = os.path.join(dest_dir, file)
-
-                    shutil.copy(src, dst)
+                    shutil.copy(
+                        os.path.join(src_dir, file),
+                        os.path.join(dest_dir, file)
+                    )
                     logfile.write(f"✔ Pulled: {dep}/{file}\n")
                     print(Colors.green(f"✔ Pulled artifact: {dep}/{file}"))
-        
+
         if check_timeout(job_name, job_timeout, job_start_time, logfile):
             return (job_name, False, log_path)
 
-        
+        # -------- INSTALL -------- #
         install_cmds = job_data.get("install", [])
-
         if install_cmds:
             print(Colors.yellow(f"\n📦 Installing dependencies for job '{job_name}'..."))
-            logfile.write("=== Installing dependencies ===\n")
+            logfile.write("\n=== Installing Dependencies ===\n")
 
             for cmd in install_cmds:
                 logfile.write(f"\n→ {cmd}\n")
                 print(Colors.blue(f"→ {cmd}"))
 
-                # Replace python with sandbox python
                 if cmd.startswith("python"):
                     cmd = cmd.replace("python", str(python_exe), 1)
 
@@ -97,16 +107,15 @@ def run_single_job(job_name, job_data):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    env={**os.environ, **env}
+                    env=env
                 )
-
 
                 logfile.write(result.stdout)
                 logfile.write(result.stderr)
 
                 if result.returncode != 0:
-                    print(Colors.red("❌ Dependency installation failed."))
-                    logfile.write("❌ Dependency installation failed.\n")
+                    print(Colors.red("❌ Dependency installation failed"))
+                    logfile.write("❌ Dependency installation failed\n")
                     return (job_name, False, log_path)
 
             print(Colors.green("✔ Dependencies installed successfully\n"))
@@ -114,10 +123,8 @@ def run_single_job(job_name, job_data):
         if check_timeout(job_name, job_timeout, job_start_time, logfile):
             return (job_name, False, log_path)
 
-        
-        steps = job_data.get("steps", [])
-
-        for step in steps:
+        # -------- STEPS -------- #
+        for step in job_data.get("steps", []):
             if check_timeout(job_name, job_timeout, job_start_time, logfile):
                 return (job_name, False, log_path)
 
@@ -126,7 +133,6 @@ def run_single_job(job_name, job_data):
 
             start = time.time()
 
-            # Replace python with sandbox python
             if step.startswith("python"):
                 step = step.replace("python", str(python_exe), 1)
 
@@ -135,11 +141,11 @@ def run_single_job(job_name, job_data):
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                env=env
             )
 
             duration = time.time() - start
-
             logfile.write(result.stdout)
             logfile.write(result.stderr)
 
@@ -149,15 +155,14 @@ def run_single_job(job_name, job_data):
             else:
                 print(Colors.red(f"❌ Failed ({duration:.2f}s)"))
                 print(Colors.red("Stopping job early due to failure."))
-
                 logfile.write(f"❌ Failed ({duration:.2f}s)\n")
                 logfile.write("Stopping job early due to failure.\n")
-
                 return (job_name, False, log_path)
 
+        # -------- SAVE ARTIFACTS -------- #
         artifacts = job_data.get("artifacts", [])
         if artifacts:
-            artifacts_dir = f"artifacts/{job_name}"
+            artifacts_dir = f"artifacts/{job_id}"
             os.makedirs(artifacts_dir, exist_ok=True)
 
             logfile.write("\n=== Saving Artifacts ===\n")
@@ -178,57 +183,9 @@ def run_single_job(job_name, job_data):
         return (job_name, True, log_path)
 
 
-
-# Run all jobs (sequentially or in parallel)
-def run_jobs(config, parallel=False):
-    jobs = config.get("jobs", {})
-
-    if not parallel:
-        order = order_jobs_by_dependencies(jobs)
-
-        for job_name, job_data in jobs.items():
-            run_single_job(job_name, jobs[job_name])
-        return
-
-        # PARALLEL MODE WITH DEPENDENCY TRACKING
-        print(Colors.bold("\n🚀 Running jobs in parallel with dependency resolution...\n"))
-
-        order = order_jobs_by_dependencies(jobs)
-
-        completed = {}
-        futures = {}
-
-        with ThreadPoolExecutor() as executor:
-            for job_name in order:
-                needs = jobs[job_name].get("needs", [])
-
-                # Wait for dependencies
-                for dep in needs if isinstance(needs, list) else [needs]:
-                    # If dependency failed, skip this job
-                    if completed.get(dep) is False:
-                        print(Colors.red(f"❌ Skipping '{job_name}' because dependency '{dep}' failed"))
-                        completed[job_name] = False
-                        break
-                else:
-                    # Run job
-                    futures[job_name] = executor.submit(
-                        run_single_job, job_name, jobs[job_name]
-                    )
-
-                # Check finished jobs
-                for name, future in list(futures.items()):
-                    if future.done():
-                        _, success, _ = future.result()
-                        completed[name] = success
-                        del futures[name]
-
-        # Wait for remaining
-        for name, future in futures.items():
-            _, success, _ = future.result()
-            completed[name] = success
+# ---------------- WORKFLOW EXECUTION ---------------- #
 
 def order_jobs_by_dependencies(jobs):
-    # Build graph
     graph = {}
     indegree = {}
 
@@ -240,14 +197,12 @@ def order_jobs_by_dependencies(jobs):
         graph[job_name] = needs
         indegree[job_name] = len(needs)
 
-    # Kahn’s Topological Sort
     ordered = []
-    ready = [job for job, d in indegree.items() if d == 0]
+    ready = [j for j, d in indegree.items() if d == 0]
 
     while ready:
         job = ready.pop(0)
         ordered.append(job)
-
         for j, deps in graph.items():
             if job in deps:
                 indegree[j] -= 1
@@ -258,3 +213,37 @@ def order_jobs_by_dependencies(jobs):
         raise SystemExit("❌ Cyclic dependency detected in 'needs:'")
 
     return ordered
+
+
+def run_jobs(config, parallel=False):
+    jobs = config.get("jobs", {})
+    order = order_jobs_by_dependencies(jobs)
+
+    if not parallel:
+        for job_name in order:
+            run_single_job(job_name, jobs[job_name])
+        return
+
+    print(Colors.bold("\n🚀 Running jobs in parallel with dependency resolution...\n"))
+    completed = {}
+
+    with ThreadPoolExecutor() as executor:
+        futures = {}
+
+        for job_name in order:
+            needs = jobs[job_name].get("needs", [])
+            if isinstance(needs, str):
+                needs = [needs]
+
+            if any(completed.get(dep) is False for dep in needs):
+                print(Colors.red(f"❌ Skipping '{job_name}' due to failed dependency"))
+                completed[job_name] = False
+                continue
+
+            futures[job_name] = executor.submit(
+                run_single_job, job_name, jobs[job_name]
+            )
+
+        for job_name, future in futures.items():
+            _, success, _ = future.result()
+            completed[job_name] = success
