@@ -9,9 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pyci.utils.colors import Colors
 from pyci.runner.sandbox import create_env
 
-
-# ---------------- UTILS ---------------- #
-
 def safe_job_id(job_name: str) -> str:
     """Filesystem-safe job identifier (important for Windows)."""
     return re.sub(r"[^A-Za-z0-9_-]", "_", job_name)
@@ -30,9 +27,6 @@ def check_timeout(job_name, job_timeout, job_start_time, logfile):
 
     return False
 
-
-# ---------------- JOB EXECUTION ---------------- #
-
 def run_single_job(job_name, job_data):
     job_id = safe_job_id(job_name)
     job_timeout = job_data.get("timeout")
@@ -40,10 +34,8 @@ def run_single_job(job_name, job_data):
 
     os.makedirs("logs", exist_ok=True)
 
-    # Create sandbox using SAFE job id
     python_exe = create_env(job_id)
 
-    # Merge env correctly
     env = {**os.environ}
     env.update({str(k): str(v) for k, v in job_data.get("env", {}).items()})
 
@@ -56,7 +48,6 @@ def run_single_job(job_name, job_data):
 
         print(Colors.bold(f"\n=== Running job: {job_name} ==="))
 
-        # -------- FETCH ARTIFACTS -------- #
         uses = job_data.get("uses_artifacts", [])
         if isinstance(uses, str):
             uses = [uses]
@@ -88,7 +79,6 @@ def run_single_job(job_name, job_data):
         if check_timeout(job_name, job_timeout, job_start_time, logfile):
             return (job_name, False, log_path)
 
-        # -------- INSTALL -------- #
         install_cmds = job_data.get("install", [])
         if install_cmds:
             print(Colors.yellow(f"\n📦 Installing dependencies for job '{job_name}'..."))
@@ -123,7 +113,6 @@ def run_single_job(job_name, job_data):
         if check_timeout(job_name, job_timeout, job_start_time, logfile):
             return (job_name, False, log_path)
 
-        # -------- STEPS -------- #
         for step in job_data.get("steps", []):
             if check_timeout(job_name, job_timeout, job_start_time, logfile):
                 return (job_name, False, log_path)
@@ -159,7 +148,6 @@ def run_single_job(job_name, job_data):
                 logfile.write("Stopping job early due to failure.\n")
                 return (job_name, False, log_path)
 
-        # -------- SAVE ARTIFACTS -------- #
         artifacts = job_data.get("artifacts", [])
         if artifacts:
             artifacts_dir = f"artifacts/{job_id}"
@@ -181,9 +169,7 @@ def run_single_job(job_name, job_data):
 
         print(Colors.yellow(f"📄 Log saved at: {log_path}"))
         return (job_name, True, log_path)
-
-
-# ---------------- WORKFLOW EXECUTION ---------------- #
+        
 
 def order_jobs_by_dependencies(jobs):
     graph = {}
