@@ -10,7 +10,6 @@ def expand_matrix_jobs(jobs):
     for job_name, job_data in jobs.items():
         matrix = job_data.get("matrix")
 
-        # No matrix → keep job as-is
         if not matrix:
             expanded[job_name] = job_data
             continue
@@ -27,7 +26,6 @@ def expand_matrix_jobs(jobs):
                     f"❌ Matrix values for '{k}' in job '{job_name}' must be a list"
                 )
 
-        # Cartesian product
         for combo in itertools.product(*values):
             suffix = ",".join(f"{k}={v}" for k, v in zip(keys, combo))
             new_job_name = f"{job_name}[{suffix}]"
@@ -35,7 +33,6 @@ def expand_matrix_jobs(jobs):
             new_job = copy.deepcopy(job_data)
             new_job.pop("matrix")
 
-            # Inject matrix vars as env
             env = new_job.get("env", {})
             env.update({k: str(v) for k, v in zip(keys, combo)})
             new_job["env"] = env
@@ -46,7 +43,6 @@ def expand_matrix_jobs(jobs):
 
 
 def load_config(path: str):    
-    # Loading YAML file safely
     try:
         with open(path, "r") as f:
             data = yaml.safe_load(f)
@@ -55,11 +51,9 @@ def load_config(path: str):
     except yaml.YAMLError as e:
         raise SystemExit(f"❌ YAML syntax error in {path}:\n{e}")
 
-    # Empty file check
     if data is None:
         raise SystemExit(f"❌ {path} is empty or invalid YAML.")
 
-    # Validate top-level structure
     for key in REQUIRED_TOP_LEVEL:
         if key not in data:
             raise SystemExit(f"❌ Missing required top-level key: '{key}'")
@@ -74,7 +68,6 @@ def load_config(path: str):
     if len(jobs) == 0:
         raise SystemExit("❌ No jobs defined under 'jobs:'")
 
-    # Validate each job
     for job_name, job_data in jobs.items():
         if not isinstance(job_data, dict):
             raise SystemExit(f"❌ Job '{job_name}' must be a mapping, not {type(job_data).__name__}")
@@ -82,12 +75,10 @@ def load_config(path: str):
         if "steps" not in job_data:
             raise SystemExit(f"❌ Job '{job_name}' is missing required key: 'steps'")
         
-        # Validate global env
         if "env" in data:
             if not isinstance(data["env"], dict):
                 raise SystemExit("❌ Top-level 'env' must be a dictionary")
         
-        # Validate 'needs' (optional)
         if "needs" in job_data:
             needs = job_data["needs"]
 
@@ -103,7 +94,6 @@ def load_config(path: str):
                         f"❌ Job '{job_name}' references unknown dependency '{dep}' in 'needs'"
                     )
 
-        # Validate install section (optional)
         if "install" in job_data:
             install_cmds = job_data["install"]
 
@@ -131,11 +121,9 @@ def load_config(path: str):
                         f"   Offending value: {path}"
                     )
 
-        # Validate artifact usage (optional)
         if "uses_artifacts" in job_data:
             uses = job_data["uses_artifacts"]
 
-            # Convert string → list
             if isinstance(uses, str):
                 uses = [uses]
                 job_data["uses_artifacts"] = uses
@@ -149,7 +137,6 @@ def load_config(path: str):
                         f"❌ Job '{job_name}' requests artifacts from unknown job '{dep}'"
                     )
 
-        # Validate timeout (optional)
         if "timeout" in job_data:
             timeout = job_data["timeout"]
             if not isinstance(timeout, (int, float)) or timeout <= 0:
@@ -158,7 +145,6 @@ def load_config(path: str):
                 )
 
 
-        # Validate environment variables (optional)
         if "env" in job_data:
             if not isinstance(job_data["env"], dict):
                 raise SystemExit(f"❌ 'env' in job '{job_name}' must be a dictionary")
@@ -172,7 +158,6 @@ def load_config(path: str):
         if len(steps) == 0:
             raise SystemExit(f"❌ Job '{job_name}' has no steps defined")
 
-        # Check each step is a string command
         for s in steps:
             if not isinstance(s, str):
                 raise SystemExit(
