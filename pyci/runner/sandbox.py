@@ -18,8 +18,7 @@ def create_env(job_id: str) -> Path:
             [sys.executable, "-m", "venv", str(env_dir)]
         )
 
-    # Return python executable path
-    if os.name == "nt":  # Windows
+    if os.name == "nt":
         python_exe = env_dir / "Scripts" / "python.exe"
     else:
         python_exe = env_dir / "bin" / "python"
