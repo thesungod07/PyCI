@@ -7,7 +7,6 @@ This project was built as a **systems-level utility project** and is suitable fo
 - a learning CI engine,
 - a local CI runner,
 - a foundation for further CI/CD tooling,
-- or a Google Summer of Code (GSoC) project.
 
 ---
 
